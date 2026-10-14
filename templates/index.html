@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NEXORA — Smart Inventory & POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="p-3 md:p-6 pb-12 flex flex-col min-h-screen justify-between">
+
+  <div class="flex-grow">
+    <!-- TOP APP BAR -->
+    <header class="glass-nav sticky top-0 z-40 px-4 py-3 rounded-2xl mb-5 flex flex-wrap items-center justify-between gap-3 shadow-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-xl shadow-lg shadow-cyan-500/30">
+          🏪
+        </div>
+        <div>
+          <h1 class="text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            NEXORA Inventory OS
+            <span id="dbBadge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-blue-900/60 text-blue-300 border border-blue-500/30">
+              Checking DB...
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">
+            INVENTORY INTELLIGENCE • POS & REAL-TIME STOCK • <span class="text-cyan-300 font-semibold tracking-wide">Designed & Deployed by Amit Prajapat</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="openDbModal()" class="px-3 py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-white/10 text-slate-200 border border-white/10 flex items-center gap-1.5 transition">
+          <span>⚙️</span> <span class="hidden sm:inline">DB Settings</span>
+        </button>
+        <button onclick="triggerDemoLoad()" class="px-3 py-1.5 rounded-xl text-xs font-bold glass-btn-success text-white flex items-center gap-1.5">
+          <span>⚡</span> <span class="hidden sm:inline">Load Demo</span>
+        </button>
+        <button onclick="fetchFullState()" class="p-2 rounded-xl text-xs glass-panel text-slate-300 hover:text-white border border-white/10">
+          🔄
+        </button>
+      </div>
+    </header>
+
+    <!-- LOW-STOCK ALERT BANNER -->
+    <div id="alertBanner" class="hidden mb-5 p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-base animate-pulse">⚠️</span>
+        <span id="alertBannerText" class="font-medium"></span>
+      </div>
+      <span class="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-md">Action Needed</span>
+    </div>
+
+    <!-- KPI SUMMARY CARDS -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <div class="glass-panel p-4 rounded-2xl">
+        <div class="text-[11px] font-semibold uppercase text-slate-400">Total Stock Value</div>
+        <div id="statValuation" class="text-xl md:text-2xl font-bold font-mono text-cyan-400 mt-1">₹0.00</div>
+      </div>
+      <div class="glass-panel p-4 rounded-2xl">
+        <div class="text-[11px] font-semibold uppercase text-slate-400">Units in Stock</div>
+        <div id="statUnits" class="text-xl md:text-2xl font-bold font-mono text-emerald-400 mt-1">0</div>
+      </div>
+      <div class="glass-panel p-4 rounded-2xl">
+        <div class="text-[11px] font-semibold uppercase text-slate-400">Total Orders</div>
+        <div id="statOrders" class="text-xl md:text-2xl font-bold font-mono text-indigo-400 mt-1">0</div>
+      </div>
+      <div class="glass-panel p-4 rounded-2xl">
+        <div class="text-[11px] font-semibold uppercase text-slate-400">Net Sales Revenue</div>
+        <div id="statRevenue" class="text-xl md:text-2xl font-bold font-mono text-amber-400 mt-1">₹0.00</div>
+      </div>
+    </div>
+
+    <!-- MAIN 2-COLUMN LAYOUT -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <!-- LEFT COLUMN: CATALOG & INVENTORY (7 COLS) -->
+      <div class="lg:col-span-7 space-y-5">
+        <div class="glass-panel rounded-3xl p-4 md:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span>📦</span> Product Catalog & Inventory
+              </h2>
+              <p class="text-xs text-slate-400">Live stock cards with real-time threshold alerts</p>
+            </div>
+            <button onclick="openNewProductModal()" class="glass-btn-primary px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5">
+              <span>+</span> Add Product
+            </button>
+          </div>
+
+          <!-- Filter, View Toggle & Search -->
+          <div class="space-y-2.5 mb-4">
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1">
+                <input type="text" id="catalogSearchInput" oninput="renderInventoryCards()" placeholder="🔍 Search product name, category, or ID..." class="w-full glass-input rounded-xl px-3 py-2 text-xs">
+              </div>
+              <div class="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 text-xs">
+                <button id="viewGridBtn" onclick="switchCatalogView('grid')" class="px-2.5 py-1 rounded-lg font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">🔲 Boxes</button>
+                <button id="viewListBtn" onclick="switchCatalogView('list')" class="px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white">📄 Table</button>
+              </div>
+            </div>
+            <!-- Category Filter Pills -->
+            <div id="categoryFilterPills" class="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]"></div>
+          </div>
+
+          <!-- Separate Product Card Boxes Container (Card Grid) -->
+          <div id="productCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[580px] overflow-y-auto pr-1">
+            <!-- Rendered via JS -->
+          </div>
+
+          <!-- Alternative Table View (Accessible via Toggle) -->
+          <div id="productTableContainer" class="hidden overflow-x-auto rounded-2xl border border-white/5 max-h-[580px]">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-white/5 text-slate-400 uppercase tracking-wider text-[10px] sticky top-0 backdrop-blur-md">
+                <tr>
+                  <th class="px-3 py-2.5">ID</th>
+                  <th class="px-3 py-2.5">Product</th>
+                  <th class="px-3 py-2.5">Category</th>
+                  <th class="px-3 py-2.5 text-right">Price</th>
+                  <th class="px-3 py-2.5 text-center">Stock</th>
+                  <th class="px-3 py-2.5 text-center">Status</th>
+                  <th class="px-3 py-2.5 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody" class="divide-y divide-white/5"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- AUDIT LOGS & TOP SELLERS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="glass-panel rounded-3xl p-4">
+            <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
+              <span>📜</span> Recent Stock Movement Logs
+            </h3>
+            <div id="stockLogsList" class="space-y-2 max-h-48 overflow-y-auto text-[11px] pr-1"></div>
+          </div>
+
+          <div class="glass-panel rounded-3xl p-4">
+            <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
+              <span>🏆</span> Best-Selling Items
+            </h3>
+            <div id="bestSellersList" class="space-y-2 max-h-48 overflow-y-auto text-[11px] pr-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: POS CHECKOUT CART (5 COLS) -->
+      <div class="lg:col-span-5 space-y-5">
+        <div class="glass-panel rounded-3xl p-4 md:p-5 sticky top-20">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span>🧾</span> Point of Sale (POS)
+              </h2>
+              <p class="text-xs text-slate-400">Build order & generate official receipts</p>
+            </div>
+            <button onclick="clearCart()" class="text-xs text-rose-400 hover:text-rose-300 font-medium">Clear Cart</button>
+          </div>
+
+          <!-- Customer Name Input -->
+          <div class="mb-3">
+            <label class="block text-[11px] text-slate-400 font-medium mb-1">Customer / Student Name</label>
+            <input type="text" id="custNameInput" value="Walk-in Student" class="w-full glass-input rounded-xl px-3 py-1.5 text-xs">
+          </div>
+
+          <!-- Add Item Selector -->
+          <div class="grid grid-cols-12 gap-2 mb-3">
+            <div class="col-span-8">
+              <label class="block text-[11px] text-slate-400 font-medium mb-1">Select Available Item</label>
+              <select id="posItemSelect" class="w-full glass-input rounded-xl px-3 py-1.5 text-xs bg-slate-900 text-slate-200"></select>
+            </div>
+            <div class="col-span-4">
+              <label class="block text-[11px] text-slate-400 font-medium mb-1">Qty</label>
+              <div class="flex gap-1">
+                <input type="number" id="posQtyInput" value="1" min="1" class="w-full glass-input rounded-xl px-2 py-1.5 text-xs text-center font-mono">
+                <button onclick="addToCart()" class="glass-btn-primary px-3 rounded-xl text-xs font-bold text-white">+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cart Items Box -->
+          <div class="border border-white/10 rounded-2xl p-2.5 mb-3 bg-black/20 min-h-[140px] max-h-[190px] overflow-y-auto">
+            <div id="cartItemsContainer" class="space-y-2 text-xs"></div>
+          </div>
+
+          <!-- Discount & Tax -->
+          <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+            <div>
+              <label class="block text-[11px] text-slate-400 font-medium mb-1">Discount (%)</label>
+              <input type="number" id="posDiscount" value="0" min="0" oninput="renderCartSummary()" class="w-full glass-input rounded-xl px-2.5 py-1 text-center font-mono text-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 font-medium mb-1">Tax / GST (%)</label>
+              <input type="number" id="posTax" value="5" min="0" oninput="renderCartSummary()" class="w-full glass-input rounded-xl px-2.5 py-1 text-center font-mono text-xs">
+            </div>
+          </div>
+
+          <!-- Grand Total Summary -->
+          <div class="p-3 rounded-2xl bg-white/5 border border-white/10 mb-3 space-y-1 text-xs">
+            <div class="flex justify-between text-slate-400">
+              <span>Subtotal</span>
+              <span id="posSubtotalTxt" class="font-mono">₹0.00</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>Discount Amount</span>
+              <span id="posDiscountTxt" class="font-mono text-amber-400">-₹0.00</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>Tax (GST)</span>
+              <span id="posTaxTxt" class="font-mono">+₹0.00</span>
+            </div>
+            <div class="flex justify-between text-white font-bold pt-1 border-t border-white/10 text-sm">
+              <span>Grand Total</span>
+              <span id="posTotalTxt" class="font-mono text-emerald-400">₹0.00</span>
+            </div>
+          </div>
+
+          <button onclick="handleCheckout()" class="w-full glass-btn-success py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2">
+            <span>✅</span> Complete Order & Print Receipt
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BRANDING FOOTER: DESIGNED & DEPLOYED BY AMIT PRAJAPAT -->
+  <footer class="mt-10 pt-6 pb-4 border-t border-white/10 text-center w-full">
+    <div class="inline-flex flex-wrap items-center justify-center gap-2.5 px-6 py-2.5 rounded-2xl glass-panel border border-cyan-500/30 text-xs shadow-2xl backdrop-blur-xl">
+      <span class="flex h-2.5 w-2.5 relative">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+      </span>
+      <span class="text-slate-300 font-medium">Designed & Deployed by</span>
+      <span class="font-bold tracking-wide text-sm bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-400">
+        Amit Prajapat
+      </span>
+      <span class="text-slate-500 hidden sm:inline">•</span>
+      <span class="text-slate-400 text-[11px] font-mono">📍 Jaipur, Rajasthan, India</span>
+      <span class="text-slate-500 hidden sm:inline">•</span>
+      <span class="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 font-mono font-bold tracking-wider uppercase">
+        v3.0 • PRO UI
+      </span>
+    </div>
+  </footer>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- 1. Add Product Modal -->
+  <div id="newProductModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel rounded-3xl max-w-sm w-full p-6">
+      <h3 class="font-bold text-white text-base mb-3">➕ Register New Product</h3>
+      <form onsubmit="handleNewProductSubmit(event)" class="space-y-3 text-xs">
+        <input type="text" id="newProd_id" required placeholder="Item ID (e.g. P007)" class="w-full glass-input rounded-xl px-3 py-2 uppercase font-mono">
+        <input type="text" id="newProd_name" required placeholder="Product Name (e.g. Cold Drink)" class="w-full glass-input rounded-xl px-3 py-2">
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="newProd_cat" required placeholder="Category (e.g. Snack)" class="w-full glass-input rounded-xl px-3 py-2">
+          <input type="text" id="newProd_emoji" placeholder="Emoji (e.g. 🥤)" class="w-full glass-input rounded-xl px-3 py-2 text-center">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <input type="number" id="newProd_price" step="0.5" min="0" required placeholder="Price (₹)" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+          <input type="number" id="newProd_stock" min="0" required placeholder="Initial Stock" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+        </div>
+        <input type="number" id="newProd_reorder" min="0" required placeholder="Min Reorder Alert Point (e.g. 10)" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeNewProductModal()" class="px-3 py-2 rounded-xl bg-white/10 text-white">Cancel</button>
+          <button type="submit" class="glass-btn-primary px-4 py-2 rounded-xl font-bold text-white">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Edit Existing Product Modal -->
+  <div id="editProductModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel rounded-3xl max-w-sm w-full p-6 border border-cyan-500/30">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-white text-base flex items-center gap-2">
+          <span>✏️ Edit Item Details</span>
+        </h3>
+        <span id="editProd_idBadge" class="font-mono text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-bold"></span>
+      </div>
+      <form onsubmit="handleEditProductSubmit(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="editProd_id">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Product Name</label>
+          <input type="text" id="editProd_name" required placeholder="Item Name" class="w-full glass-input rounded-xl px-3 py-2">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Category</label>
+            <input type="text" id="editProd_cat" required placeholder="Category" class="w-full glass-input rounded-xl px-3 py-2">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Emoji Icon</label>
+            <input type="text" id="editProd_emoji" maxlength="4" placeholder="e.g. 🥟" class="w-full glass-input rounded-xl px-3 py-2 text-center text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Price (₹)</label>
+            <input type="number" id="editProd_price" step="0.5" min="0" required placeholder="Price" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Min Reorder Alert</label>
+            <input type="number" id="editProd_reorder" min="0" required placeholder="Min Alert" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 italic">*Stock count is preserved. Use the '+ Restock' button to add stock.</p>
+        <div class="flex justify-end gap-2 pt-2 border-t border-white/10">
+          <button type="button" onclick="closeEditProductModal()" class="px-3 py-2 rounded-xl bg-white/10 text-white">Cancel</button>
+          <button type="submit" class="glass-btn-primary px-4 py-2 rounded-xl font-bold text-white">Update Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Restock Modal -->
+  <div id="restockModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel rounded-3xl max-w-sm w-full p-6">
+      <h3 class="font-bold text-white text-base mb-3">📥 Incoming Restock Entry</h3>
+      <form onsubmit="handleRestockSubmit(event)" class="space-y-3 text-xs">
+        <select id="restock_selectItem" class="w-full glass-input rounded-xl px-3 py-2 bg-slate-900 text-slate-200"></select>
+        <input type="number" id="restock_qty" min="1" required placeholder="Qty to Add (+)" class="w-full glass-input rounded-xl px-3 py-2 font-mono">
+        <input type="text" id="restock_note" placeholder="Supplier note (e.g. Morning delivery)" class="w-full glass-input rounded-xl px-3 py-2">
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeRestockModal()" class="px-3 py-2 rounded-xl bg-white/10 text-white">Cancel</button>
+          <button type="submit" class="glass-btn-success px-4 py-2 rounded-xl font-bold text-white">Add Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Database Connection Settings Modal -->
+  <div id="dbModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel rounded-3xl max-w-md w-full p-6">
+      <h3 class="font-bold text-white text-base mb-1">⚙️ Database Configuration</h3>
+      <p class="text-xs text-slate-400 mb-4">Connect to PostgreSQL or use SQLite Fallback</p>
+      <form onsubmit="handleDbSave(event)" class="space-y-3 text-xs">
+        <div class="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+          <input type="checkbox" id="cfg_usePg" class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-white/20">
+          <label for="cfg_usePg" class="text-slate-200 font-medium">Enable PostgreSQL Engine</label>
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">PostgreSQL Connection URI</label>
+          <input type="text" id="cfg_pgUrl" placeholder="postgresql://user:pass@host:5432/dbname" class="w-full glass-input rounded-xl px-3 py-2 font-mono text-[11px]">
+        </div>
+        <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-500/20 text-[11px] text-blue-300 space-y-1">
+          <div>💡 <strong>In Termux:</strong> Install with <code>pkg install postgresql && pip install pg8000</code></div>
+          <div>💡 <strong>Cloud DB:</strong> Paste URI from Neon.tech, Supabase, or AWS RDS.</div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeDbModal()" class="px-3 py-2 rounded-xl bg-white/10 text-white">Cancel</button>
+          <button type="submit" class="glass-btn-primary px-4 py-2 rounded-xl font-bold text-white">Save & Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Printable Receipt Modal -->
+  <div id="receiptModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel rounded-3xl max-w-sm w-full p-6 text-center">
+      <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 text-2xl rounded-2xl flex items-center justify-center mx-auto mb-3">
+        🧾
+      </div>
+      <h3 class="font-bold text-white text-base">Order Completed!</h3>
+      <p class="text-xs text-slate-400 mb-3" id="receiptInvId">Invoice INV-0001</p>
+      <pre id="receiptText" class="p-3 rounded-xl bg-black/60 border border-white/10 text-emerald-300 font-mono text-[11px] text-left overflow-x-auto max-h-60 mb-4 whitespace-pre"></pre>
+      <div class="flex gap-2">
+        <button onclick="closeReceiptModal()" class="flex-1 px-3 py-2 rounded-xl bg-white/10 text-white text-xs">Close</button>
+        <button onclick="downloadReceiptTxt()" class="flex-1 glass-btn-primary px-3 py-2 rounded-xl font-bold text-white text-xs">Download TXT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-500/40 text-cyan-200 text-xs shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0"></div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>
